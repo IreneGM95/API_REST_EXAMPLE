@@ -34,7 +34,6 @@ public class Producto implements Serializable {
     @Size(min = 4, max = 25, message = "El nombre tiene que estar entre 4 y 25 caracteres")
     private String nombre;
     
-    
     @Size(max = 255, message = "La descripción no puede superar los 255 caracteres")
     private String descripcion;
 
