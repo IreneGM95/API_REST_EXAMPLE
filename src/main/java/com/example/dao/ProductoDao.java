@@ -40,7 +40,7 @@ public interface ProductoDao extends JpaRepository<Producto, Long> {
     // (Hibernate Quer Language), se recupera por el id:
 
     @Query(value = "select p from Producto p left join fetch p.presentacion where p.id = :id")
-    public List<Producto> findById(long id);
+    public Producto findById(long id);
 
     /**
      * RECORDEMOS QUE: Cuando hemos creado las relaciones hemos especificado que
