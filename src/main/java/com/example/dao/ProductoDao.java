@@ -33,6 +33,8 @@ public interface ProductoDao extends JpaRepository<Producto, Long> {
 
     @Query(value = "select p from Producto p left join fetch p.presentacion", countQuery = "select count(p) from Producto p left join p.presentacion")
     public Page<Producto> findAll(Pageable pageable);
+//devuelve el numero de productos fijados por el pageable
+
 
     // Consulta para recuperar las presentaciones con sus productos utilizando HQL
     // (Hibernate Quer Language), se recupera por el id:
