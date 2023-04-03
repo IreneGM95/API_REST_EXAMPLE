@@ -43,6 +43,8 @@ public class Producto implements Serializable {
     @Min(value = 0, message = "Es necesario reponer el stock del almacen")
     private long stock;
 
+    private String imagenProducto;
+
     @ManyToOne(fetch = FetchType.LAZY, cascade= CascadeType.PERSIST)
     private Presentacion presentacion;
 
