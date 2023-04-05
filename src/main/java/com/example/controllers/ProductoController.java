@@ -7,12 +7,15 @@ import java.util.List;
 import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.validation.BindingResult;
@@ -29,16 +32,20 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.example.entities.Producto;
+import com.example.model.FileUploadResponse;
 import com.example.services.ProductoService;
+import com.example.utilities.FileDownloadUtil;
 import com.example.utilities.FileUploadUtil;
 
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 //En lugar de controller usamos un restcontroller
 //En una api rest se gestiona un recurso y en dependencias de http sera la peticion u otra
 @RestController
 @RequestMapping("/productos") // todas las peticiones se hacen a traves de productos, no hace falta crear
                               // /listar, /alta...
+@RequiredArgsConstructor
 public class ProductoController {
 
     // No basta devolver la información, hay que confirmar la petición
@@ -46,7 +53,14 @@ public class ProductoController {
     private ProductoService productoService;
 
     @Autowired
-    private FileUploadUtil fileUploadUtil; //necesario para subir y guardar imagenes
+    private FileUploadUtil fileUploadUtil; // necesario para subir y guardar imagenes
+
+    // Tambien se puede inyectar la dependencia, en lugar de autowired, mediante
+    // constructor(anotación @RequiredArgsConstructor puesta arriba):
+    // @Autowired
+    // private FileUploadResponse fileUploadResponse;
+
+    private final FileDownloadUtil fileDownloadUtil;
 
     /**
      * Este método va a responder a una petición (request) del tipo
@@ -60,8 +74,8 @@ public class ProductoController {
      */
     @GetMapping // le hacemos la petición por get
     public ResponseEntity<List<Producto>> findAll(
-            @RequestParam(name = "page", required = false) Integer page,
-            @RequestParam(name = "size", required = false) Integer size) {
+            @RequestParam(name = "page", required = false) Long page,
+            @RequestParam(name = "size", required = false) Long size) {
 
         ResponseEntity<List<Producto>> responseEntity = null;
         List<Producto> productos = new ArrayList<>();
@@ -98,7 +112,7 @@ public class ProductoController {
      * Responde a una petición del tipo http://localhost:8080/productos/2 donde id=2
      */
     @GetMapping("/{id}")
-    public ResponseEntity<Map<String, Object>> findById(@PathVariable(name = "id") Integer id) {
+    public ResponseEntity<Map<String, Object>> findById(@PathVariable(name = "id") Long id) {
 
         ResponseEntity<Map<String, Object>> responseEntity = null;
         Map<String, Object> responseAsMap = new HashMap<>();
@@ -132,6 +146,7 @@ public class ProductoController {
      * de la petición.
      * En este caso, al ser un post, produto viene dentro de la petición, mientras
      * que en el post va en la cabecera (la url), por eso se utiliza un @RequestBody
+     * 
      * @throws IOException
      * 
      * @Valid obliga a que se cumplan los requisitos e informa de cuándo no se están
@@ -143,14 +158,14 @@ public class ProductoController {
     // Guardar (Persistir), un producto, con su presentacion en la base de datos
     // Para probarlo con POSTMAN: Body -> form-data -> producto -> CONTENT TYPE ->
     // application/json no se puede dejar el content type en Auto, porque de lo
-    // contrario asume application/octet-stream y genera una exception MediaTypeNotSupported
+    // contrario asume application/octet-stream y genera una exception
+    // MediaTypeNotSupported
     @PostMapping(consumes = "multipart/form-data")
     @Transactional
     public ResponseEntity<Map<String, Object>> insert(
-        @Valid 
-        @RequestPart(name = "producto") Producto producto,
-        
-            BindingResult result, 
+            @Valid @RequestPart(name = "producto") Producto producto,
+
+            BindingResult result,
             @RequestPart(name = "file") MultipartFile file) throws IOException {
 
         Map<String, Object> responseAsMap = new HashMap<>();
@@ -171,12 +186,23 @@ public class ProductoController {
         }
         // Si no hay errores, persistimos el producto. No se usa un else porque no es
         // vinculante
-        //Pero primero, antes de persistirlo, hay que comprobar si han mandado un archivo:
-        if(!file.isEmpty()){
+        // Pero primero, antes de persistirlo, hay que comprobar si han mandado un
+        // archivo:
+        if (!file.isEmpty()) {
             String fileCode = fileUploadUtil.saveFile(file.getOriginalFilename(), file);
-        producto.setImagenProducto((fileCode + "-" + file.getOriginalFilename()));
+            producto.setImagenProducto((fileCode + "-" + file.getOriginalFilename()));
+            // Devolver informacion respecto al file reciido (tamño, nombre...). Se crea la
+            // carpeta model y la cclase response
+            FileUploadResponse fileUploadResponse = FileUploadResponse
+                    .builder()
+                    .fileName((fileCode + "-" + file.getOriginalFilename()))
+                    .downloadURI("/productos/downloadFile/" + fileCode + "-" + file.getOriginalFilename())
+                    .size(file.getSize())
+                    .build();
+
+            responseAsMap.put("info de la imagen: ", fileUploadResponse);
         }
-        //Y ahora sí, persistimos:
+        // Y ahora sí, persistimos:
         Producto productoDB = productoService.save((producto));
 
         try {
@@ -209,7 +235,7 @@ public class ProductoController {
 
     public ResponseEntity<Map<String, Object>> update(@Valid @RequestBody Producto producto,
             BindingResult result,
-            @PathVariable(name = "id") Integer id) {
+            @PathVariable(name = "id") Long id) {
 
         Map<String, Object> responseAsMap = new HashMap<>();
         ResponseEntity<Map<String, Object>> responseEntity = null;
@@ -261,7 +287,7 @@ public class ProductoController {
      */
     @DeleteMapping("/{id}") // le pasamos el id del prodcuto
     @Transactional
-    public ResponseEntity<String> deleteProducto(@PathVariable(name = "id") Integer id) {
+    public ResponseEntity<String> deleteProducto(@PathVariable(name = "id") Long id) {
 
         ResponseEntity<String> responseEntity = null;
 
@@ -286,6 +312,35 @@ public class ProductoController {
         }
 
         return responseEntity;
+
+    }
+
+    /**
+     * Implementa filedownnload end point API y hace uso de la clase
+     * FileUploadResponse
+     **/
+    @GetMapping("/downloadFile/{fileCode}")
+    public ResponseEntity<?> downloadFile(@PathVariable(name = "fileCode") String fileCode) {
+
+        Resource resource = null;
+
+        try {
+            resource = fileDownloadUtil.getFileAsResource(fileCode);
+        } catch (IOException e) {
+            return ResponseEntity.internalServerError().build();
+        }
+
+        if (resource == null) {
+            return new ResponseEntity<>("File not found ", HttpStatus.NOT_FOUND);
+        }
+
+        String contentType = "application/octet-stream"; //lo devuelve como flujo de octetos de bytes
+        String headerValue = "attachment; filename=\"" + resource.getFilename() + "\""; //y lo devuelve como un attachment
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, headerValue)
+                .body(resource);
 
     }
 
