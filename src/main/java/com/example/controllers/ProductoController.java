@@ -87,7 +87,8 @@ public class ProductoController {
             // con paginación y ordenación:
             try {
                 Pageable pageable = PageRequest.of(page, size, sortByNombre);
-                Page<Producto> productosPaginados = productoService.findAll(pageable);
+                
+                               Page<Producto> productosPaginados = productoService.findAll(pageable);
                 productos = productosPaginados.getContent();
                 responseEntity = new ResponseEntity<List<Producto>>(productos, HttpStatus.OK);
             } catch (Exception e) {
